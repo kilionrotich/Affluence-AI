@@ -1,8 +1,8 @@
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import Commission, Payout
+from ..models import Click, Commission, Payout, Purchase
 from .payout_monitor import balances
 
 
@@ -40,6 +40,15 @@ def generate_report(db: Session) -> dict:
         )
 
     pending_balance, confirmed_balance = balances(db)
+
+    # Additional analytics
+    total_clicks = db.scalar(select(func.count(Click.id))) or 0
+    total_conversions = (
+        db.scalar(
+            select(func.count(Purchase.id)).where(Purchase.click_id.isnot(None))
+        ) or 0
+    )
+
     return {
         "daily_earnings": daily,
         "weekly_earnings": weekly,
@@ -56,4 +65,9 @@ def generate_report(db: Session) -> dict:
         ],
         "pending_balance": pending_balance,
         "confirmed_balance": confirmed_balance,
+        "total_clicks": total_clicks,
+        "total_conversions": total_conversions,
+        "conversion_rate": round(
+            (total_conversions / total_clicks * 100) if total_clicks > 0 else 0, 2
+        ),
     }

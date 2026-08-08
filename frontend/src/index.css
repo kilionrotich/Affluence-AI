@@ -1,7 +1,269 @@
 @import 'tailwindcss';
 
+/* ═══════════════════════════════════════════════════════════════════
+   Affluence-AI Neumorphic Design System
+   ───────────────────────────────────────────────────────────────────
+   Combines three neumorphism styles:
+   • Soft UI      — subtle dual shadows for buttons, toggles, cards
+   • Skeuomorphic — raised panels & embossed effects for logs/analytics
+   • Minimal      — clean flat surfaces with depth for dashboards
+   Accessible: light background, high-contrast text, focus rings.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Neumorphic base palette */
+  --neu-bg: #e4e9f0;              /* soft light canvas */
+  --neu-canvas: #e4e9f0;
+  --neu-surface: #edf1f7;         /* slightly lighter raised surface */
+  --neu-surface-deep: #e0e6ee;    /* darker inset base */
+  --neu-light: #ffffff;           /* highlight / top-left */
+  --neu-dark: #c3cbd8;            /* shadow / bottom-right */
+  --neu-shadow-1: 8px 8px 16px var(--neu-dark);
+  --neu-shadow-2: -8px -8px 16px var(--neu-light);
+  --neu-inset-1: inset 6px 6px 12px var(--neu-dark);
+  --neu-inset-2: inset -6px -6px 12px var(--neu-light);
+  --neu-text: #3a4250;
+  --neu-text-strong: #232a36;
+  --neu-text-muted: #646f82;
+  --neu-accent: #6366f1;
+  --neu-accent-soft: #eef0ff;
+
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light;
+}
+
+html, body {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  background-color: #f5f7fb;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--neu-bg);
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.6), transparent 60%),
+    radial-gradient(ellipse at 90% 100%, rgba(99, 102, 241, 0.06), transparent 55%);
+  color: var(--neu-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── App shell ───────────────────────────────────────────────────── */
+.app-shell {
+  min-height: 100vh;
+  background-color: var(--neu-bg);
+}
+
+/* ── Neumorphic card (Soft UI raised surface) ────────────────────── */
+.neu-card {
+  background: var(--neu-surface);
+  border-radius: 20px;
+  box-shadow: var(--neu-shadow-1), var(--neu-shadow-2);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.neu-card--hover:hover {
+  box-shadow: 6px 6px 12px var(--neu-dark), -6px -6px 12px var(--neu-light);
+  transform: translateY(-1px);
+}
+
+/* ── Inset / embossed panel (Skeuomorphic for logs & analytics) ──── */
+.neu-inset {
+  background: var(--neu-surface-deep);
+  border-radius: 18px;
+  box-shadow: var(--neu-inset-1), var(--neu-inset-2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.neu-inset-soft {
+  background: var(--neu-surface);
+  border-radius: 16px;
+  box-shadow: inset 4px 4px 8px var(--neu-dark), inset -4px -4px 8px var(--neu-light);
+}
+
+/* ── Neumorphic button ───────────────────────────────────────────── */
+.neu-btn {
+  background: var(--neu-surface);
+  border-radius: 14px;
+  box-shadow: var(--neu-shadow-1), var(--neu-shadow-2);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: var(--neu-text-strong);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.neu-btn:hover:not(:disabled) {
+  box-shadow: 6px 6px 12px var(--neu-dark), -6px -6px 12px var(--neu-light);
+  transform: translateY(-1px);
+}
+
+.neu-btn:active:not(:disabled) {
+  box-shadow: var(--neu-inset-1), var(--neu-inset-2);
+  transform: translateY(0);
+}
+
+.neu-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.neu-btn--accent {
+  background: linear-gradient(145deg, #eef0ff, #dde1ff);
+  color: var(--neu-accent);
+}
+
+.neu-btn--flat {
+  box-shadow: none;
+  background: transparent;
+}
+
+/* ── Neumorphic toggle (pill switch) ─────────────────────────────── */
+.neu-toggle {
+  position: relative;
+  width: 56px;
+  height: 30px;
+  border-radius: 30px;
+  background: var(--neu-surface-deep);
+  box-shadow: var(--neu-inset-1), var(--neu-inset-2);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border: none;
+}
+
+.neu-toggle__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--neu-surface);
+  box-shadow: 3px 3px 6px var(--neu-dark), -3px -3px 6px var(--neu-light);
+  transition: left 0.25s ease, background 0.2s ease;
+}
+
+.neu-toggle--on {
+  background: linear-gradient(145deg, #cfe0ff, #b9cdff);
+}
+
+.neu-toggle--on .neu-toggle__knob {
+  left: 29px;
+  background: linear-gradient(145deg, #ffffff, #e3e8ff);
+}
+
+/* ── Neumorphic input / select / textarea ────────────────────────── */
+.neu-input {
+  background: var(--neu-surface-deep);
+  border-radius: 12px;
+  box-shadow: var(--neu-inset-1), var(--neu-inset-2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: var(--neu-text-strong);
+  transition: box-shadow 0.2s ease;
+}
+
+.neu-input:focus {
+  outline: none;
+  box-shadow: inset 5px 5px 10px var(--neu-dark), inset -5px -5px 10px var(--neu-light),
+    0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+.neu-input::placeholder {
+  color: var(--neu-text-muted);
+  opacity: 0.7;
+}
+
+/* ── Neumorphic badge / pill ─────────────────────────────────────── */
+.neu-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--neu-surface);
+  box-shadow: 3px 3px 6px var(--neu-dark), -3px -3px 6px var(--neu-light);
+  color: var(--neu-text-strong);
+}
+
+.neu-pill--green  { color: #0f7b4d; background: linear-gradient(145deg, #e4f7ec, #d2f0e0); }
+.neu-pill--yellow { color: #8a5a00; background: linear-gradient(145deg, #fff4d6, #ffe9b8); }
+.neu-pill--red    { color: #b3271f; background: linear-gradient(145deg, #ffe8e6, #ffd6d2); }
+.neu-pill--blue   { color: #1e56a8; background: linear-gradient(145deg, #e3eeff, #d2e2ff); }
+.neu-pill--indigo { color: #4f46e5; background: linear-gradient(145deg, #eef0ff, #e0e4ff); }
+.neu-pill--purple { color: #6d28d9; background: linear-gradient(145deg, #f1e8ff, #e8dcff); }
+.neu-pill--amber  { color: #92400e; background: linear-gradient(145deg, #fff1d6, #ffe6bd); }
+.neu-pill--sky    { color: #0c6a8a; background: linear-gradient(145deg, #e0f4ff, #cdecff); }
+.neu-pill--slate  { color: #475569; background: linear-gradient(145deg, #eef1f5, #e2e6ec); }
+
+/* ── Status indicator dot ────────────────────────────────────────── */
+.neu-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
+}
+
+/* ── Header & navigation neumorphic strips ───────────────────────── */
+.neu-header {
+  background: var(--neu-surface);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 16px rgba(195, 203, 216, 0.35), 0 -4px 12px rgba(255, 255, 255, 0.6);
+}
+
+.neu-nav-tab {
+  background: transparent;
+  border: none;
+  color: var(--neu-text-muted);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  border-radius: 12px;
+}
+
+.neu-nav-tab:hover {
+  color: var(--neu-text-strong);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.neu-nav-tab--active {
+  color: var(--neu-accent);
+  background: linear-gradient(145deg, #ffffff, #e3e8ff);
+  box-shadow: 3px 3px 6px var(--neu-dark), -3px -3px 6px var(--neu-light);
+  font-weight: 600;
+}
+
+/* ── Scrollbar styling ───────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--neu-dark);
+  border-radius: 10px;
+  border: 2px solid var(--neu-bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #aeb8c7;
+}
+
+/* ── Accessibility: visible focus ring ───────────────────────────── */
+:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.5);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Reduced motion support ──────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

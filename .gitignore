@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+*.egg-info/
+
+# Databases (local dev only - not for version control)
+*.db
+*.db.bak_*
+*.sqlite3
+
+# Node / frontend
+node_modules/
+frontend/dist/
+backend/static/
+*.local
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.swp
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Nested leftover/duplicate directory
+/Affluence-AI/

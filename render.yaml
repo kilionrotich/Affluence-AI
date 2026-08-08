@@ -1,0 +1,27 @@
+# Render Blueprint for Affluence-AI
+# Single Web Service serving both the FastAPI backend and the built React frontend.
+# Uses SQLite (ephemeral on Render) for quick demo deployment.
+
+services:
+  - type: web
+    name: affluence-ai
+    runtime: python
+    plan: free
+    rootDir: .
+    region: oregon
+    buildCommand: ./build.sh
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./affiliate.db
+      - key: ADMIN_TOKEN
+        value: admin-token
+      - key: VIEWER_TOKEN
+        value: viewer-token
+      - key: REQUIRE_HTTPS
+        value: "false"
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: VITE_API_BASE_URL
+        value: ""

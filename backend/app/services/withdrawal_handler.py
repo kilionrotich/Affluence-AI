@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..integrations.payouts import mpesa_payout, paypal_payout
 from ..models import Commission, Payout
+from .audit_logger import AuditLogger
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +13,30 @@ logger = logging.getLogger(__name__)
 def trigger_payout(db: Session, method: str, threshold: float) -> Payout:
     confirmed = db.scalars(select(Commission).where(Commission.status == "confirmed")).all()
     if not confirmed:
+        log_error = AuditLogger(db)
+        log_error.log(
+            action="payout_failed",
+            action_category="payment",
+            entity_type="Payout",
+            details="Payout attempt failed: No confirmed commissions available for payout",
+            user_role="admin",
+            success=False,
+            source="ai",
+        )
         raise ValueError("No confirmed commissions available for payout")
 
     total = round(sum(c.amount for c in confirmed), 2)
     if total < threshold:
+        log_error = AuditLogger(db)
+        log_error.log(
+            action="payout_failed",
+            action_category="payment",
+            entity_type="Payout",
+            details=f"Payout attempt failed: confirmed balance (${total:.2f}) below threshold (${threshold:.2f})",
+            user_role="admin",
+            success=False,
+            source="ai",
+        )
         raise ValueError(
             f"Total confirmed balance (${total:.2f}) is below the payout threshold (${threshold:.2f})"
         )
@@ -30,6 +51,16 @@ def trigger_payout(db: Session, method: str, threshold: float) -> Payout:
             raise ValueError(f"Unsupported payout method: {method}")
     except Exception as e:
         logger.error(f"Payout failed for method {method}, amount ${total:.2f}: {e}")
+        log_error = AuditLogger(db)
+        log_error.log(
+            action="payout_failed",
+            action_category="payment",
+            entity_type="Payout",
+            details=f"Payout processing failed for {method} (${total:.2f}): {e}",
+            user_role="admin",
+            success=False,
+            source="ai",
+        )
         raise ValueError(f"Payout processing failed: {e}") from e
 
     payout = Payout(method=method, amount=total, transaction_ref=transaction_ref, status="processed")

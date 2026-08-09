@@ -28,6 +28,8 @@ class AuditLogger:
         ip_address: Optional[str] = None,
         user_role: Optional[str] = None,
         success: bool = True,
+        source: Optional[str] = None,
+        metadata: Optional[dict] = None,
     ) -> AuditLog:
         """Create an audit log entry with optional category for filtering."""
         log_entry = AuditLog(
@@ -39,6 +41,8 @@ class AuditLogger:
             ip_address=ip_address,
             user_role=user_role,
             success=success,
+            source=source,
+            metadata_json=metadata,
         )
         self.db.add(log_entry)
         self.db.commit()
@@ -234,5 +238,144 @@ class AuditLogger:
             details=f"Re-authentication required for {platform} account '{account_name}'",
             user_role="system",
             success=False,
+        )
+
+    # ── Comprehensive User & AI Action Logging Methods ─────────────
+
+    def log_user_action(
+        self,
+        action: str,
+        details: Optional[str] = None,
+        page: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        metadata: Optional[dict] = None,
+    ) -> AuditLog:
+        """Log a user interaction from the frontend (click, navigation, input)."""
+        meta = dict(metadata or {})
+        if page:
+            meta["page"] = page
+        return self.log(
+            action=action,
+            action_category="user_action",
+            entity_type="User",
+            details=details,
+            ip_address=ip_address,
+            user_role="user",
+            source="user",
+            metadata=meta,
+        )
+
+    def log_request(
+        self,
+        method: str,
+        path: str,
+        status_code: int,
+        ip_address: Optional[str] = None,
+        user_role: Optional[str] = None,
+        duration_ms: Optional[float] = None,
+        metadata: Optional[dict] = None,
+    ) -> AuditLog:
+        """Log an HTTP API request."""
+        meta = dict(metadata or {})
+        if duration_ms is not None:
+            meta["duration_ms"] = round(duration_ms, 2)
+        ok = status_code < 400
+        return self.log(
+            action=f"http_{method.lower()}",
+            action_category="request",
+            entity_type="HTTP",
+            details=f"{method} {path} -> {status_code}",
+            ip_address=ip_address,
+            user_role=user_role or "system",
+            success=ok,
+            source="request",
+            metadata=meta,
+        )
+
+    def log_ai_scan(self, network: str, products_count: int, new_count: int, updated_count: int) -> AuditLog:
+        """Log an AI market scan for a specific network."""
+        return self.log(
+            action=f"ai_market_scan_{network}",
+            action_category="ai_action",
+            entity_type="Product",
+            details=f"[AI] Scanned {network}: {products_count} products ({new_count} new, {updated_count} updated)",
+            user_role="ai",
+            source="ai",
+            metadata={"network": network, "products_count": products_count, "new_count": new_count, "updated_count": updated_count},
+        )
+
+    def log_network_fetch(self, network: str, used_fallback: bool, count: int) -> AuditLog:
+        """Log an AI network adapter fetch."""
+        return self.log(
+            action=f"network_fetch_{network}",
+            action_category="ai_action",
+            entity_type="Network",
+            details=f"[AI] Fetched from {network} ({'fallback' if used_fallback else 'live API'}): {count} products",
+            user_role="ai",
+            source="ai",
+            metadata={"network": network, "used_fallback": used_fallback, "count": count},
+        )
+
+    def log_link_generated(self, link_id: int, product_id: int, network: str, tracking_code: str, url: str) -> AuditLog:
+        """Log an AI generating or retrieving an affiliate link."""
+        return self.log(
+            action="link_generated",
+            action_category="link_generation",
+            entity_type="AffiliateLink",
+            entity_id=link_id,
+            details=f"[AI] Generated affiliate link for product #{product_id} ({network}): {url}",
+            user_role="ai",
+            source="ai",
+            metadata={"product_id": product_id, "network": network, "tracking_code": tracking_code},
+        )
+
+    def log_click_recorded(
+        self,
+        click_id: int,
+        link_id: int,
+        tracking_code: str,
+        referrer: Optional[str] = None,
+        country: Optional[str] = None,
+        ip_address: Optional[str] = None,
+    ) -> AuditLog:
+        """Log a click recorded on an affiliate link (how links are obtained when clicked)."""
+        return self.log(
+            action="click_recorded",
+            action_category="link_generation",
+            entity_type="Click",
+            entity_id=click_id,
+            details=f"Click recorded on link #{link_id} (ref {tracking_code})"
+                    f"{' from ' + referrer if referrer else ''}"
+                    f"{' [' + country + ']' if country else ''}",
+            ip_address=ip_address,
+            user_role="user",
+            source="user",
+            metadata={"link_id": link_id, "tracking_code": tracking_code, "referrer": referrer, "country": country},
+        )
+
+    def log_content_generated(self, content_id: int, content_type: str, platform: str, title: str = "") -> AuditLog:
+        """Log AI content generation."""
+        return self.log(
+            action="content_generated",
+            action_category="content",
+            entity_type="ContentDraft",
+            entity_id=content_id,
+            details=f"[AI] Generated {content_type} content for {platform}: {title}",
+            user_role="ai",
+            source="ai",
+            metadata={"content_type": content_type, "platform": platform},
+        )
+
+    def log_new_product(self, product_id: int, network: str, name: str) -> AuditLog:
+        """Log a new product discovered by the AI."""
+        return self.log(
+            action="product_discovered",
+            action_category="scanning",
+            entity_type="Product",
+            entity_id=product_id,
+            details=f"[AI] Discovered new product '{name}' on {network}",
+            user_role="ai",
+            source="ai",
+            metadata={"network": network, "name": name},
         )
 

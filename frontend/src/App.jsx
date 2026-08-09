@@ -12,7 +12,42 @@ function auth(viewer = false) {
   return 'Bearer ' + (viewer ? VIEWER_TOKEN : ADMIN_TOKEN)
 }
 
+// ── User Activity Logging ────────────────────────────────────────────
+// Every user click / interaction is persistently recorded in the audit log
+// via the /log/user-action endpoint. This gives a complete audit trail of
+// everything the user (and the AI) does in the system.
+const activityQueue = []
+let activityTimer = null
+
+function flushActivity() {
+  if (activityQueue.length === 0) return
+  const batch = activityQueue.splice(0, activityQueue.length)
+  fetch(`${API_BASE}/log/user-action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: auth(false) },
+    body: JSON.stringify({ action: batch[0].action, details: batch[0].details, page: batch[0].page, metadata: batch[0].metadata }),
+  }).catch(() => {})
+}
+
+function logUserAction(action, details = '', metadata = {}) {
+  activityQueue.push({
+    action,
+    details,
+    page: window.location.pathname || '/',
+    metadata,
+  })
+  // Debounce: flush at most once per 2 seconds to avoid spamming the backend
+  if (!activityTimer) {
+    activityTimer = setTimeout(() => {
+      activityTimer = null
+      flushActivity()
+    }, 2000)
+  }
+}
+
 async function api(path, { method = 'GET', body, viewer = false } = {}) {
+  // Log the API call as a user action
+  logUserAction(`api_${method.toLowerCase()}`, `${method} ${path}`, { path, method })
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers: {
@@ -1149,11 +1184,16 @@ function SystemLogsTab() {
 
   const CATEGORIES = [
     { value: '', label: 'All Categories', color: 'slate' },
+    { value: 'user_action', label: '👤 User Actions', color: 'indigo' },
+    { value: 'ai_action', label: '🤖 AI Actions', color: 'cyan' },
+    { value: 'request', label: '🌐 Requests', color: 'sky' },
     { value: 'scanning', label: '🔄 Scanning', color: 'blue' },
     { value: 'validation', label: '✅ Validation', color: 'green' },
     { value: 'posting', label: '📤 Posting', color: 'purple' },
     { value: 'payment', label: '💰 Payment', color: 'emerald' },
     { value: 'compliance', label: '🛡️ Compliance', color: 'amber' },
+    { value: 'content', label: '📝 Content', color: 'orange' },
+    { value: 'link_generation', label: '🔗 Link Gen', color: 'teal' },
     { value: 'system', label: '⚙️ System', color: 'slate' },
   ]
 
@@ -1331,6 +1371,20 @@ function SystemLogsTab() {
                     {log.action_category || 'system'}
                   </Badge>
                 </div>
+
+                {/* Source badge */}
+                {log.source && (
+                  <div className="w-14 shrink-0">
+                    <Badge color={
+                      log.source === 'user' ? 'indigo'
+                      : log.source === 'ai' ? 'cyan'
+                      : log.source === 'request' ? 'sky'
+                      : 'slate'
+                    }>
+                      {log.source}
+                    </Badge>
+                  </div>
+                )}
 
                 {/* Action */}
                 <div className="w-36 shrink-0">
@@ -1515,6 +1569,66 @@ export default function App() {
     api('/report', { viewer: true })
       .then(() => setBackendOk(true))
       .catch(() => setBackendOk(false))
+  }, [])
+
+  // Global click listener — records EVERY user click persistently in the audit log.
+  useEffect(() => {
+    const handler = (e) => {
+      const target = e.target
+      if (!target || !target.closest) return
+      // Determine what was clicked
+      const el = target.closest('button, a, [role="tab"], select, input, textarea')
+      if (!el) return
+      const tag = el.tagName.toLowerCase()
+      const text = (el.innerText || el.textContent || '').trim().slice(0, 80)
+      const type = el.getAttribute('type') || ''
+      const name = el.getAttribute('name') || ''
+      const placeholder = el.getAttribute('placeholder') || ''
+      const action =
+        tag === 'button' ? `click_button`
+        : tag === 'a' ? 'click_link'
+        : tag === 'select' ? 'change_select'
+        : /input|textarea/.test(tag) ? 'input_field' : `click_${tag}`
+      logUserAction(action, text || name || placeholder || el.id || tag, {
+        tag,
+        text,
+        type,
+        name,
+        placeholder,
+        id: el.id || '',
+      })
+    }
+    document.addEventListener('click', handler, true)
+    document.addEventListener('change', handler, true)
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') {
+        const el = e.target
+        if (el && el.tagName && /input|textarea|select/.test(el.tagName.toLowerCase())) {
+          logUserAction('press_enter', el.getAttribute('placeholder') || el.tagName, {
+            tag: el.tagName.toLowerCase(),
+            placeholder: el.getAttribute('placeholder') || '',
+          })
+        }
+      }
+    }, true)
+    // Flush any queued activity on page unload
+    const flushOnExit = () => {
+      if (navigator.sendBeacon && activityQueue.length) {
+        const first = activityQueue[0]
+        try {
+          navigator.sendBeacon(
+            `${API_BASE}/log/user-action`,
+            new Blob([JSON.stringify({ action: first.action, details: first.details, page: first.page, metadata: first.metadata })], { type: 'application/json' })
+          )
+          activityQueue.length = 0
+        } catch (e) { /* ignore */ }
+      }
+    }
+    window.addEventListener('beforeunload', flushOnExit)
+    return () => {
+      document.removeEventListener('click', handler, true)
+      window.removeEventListener('beforeunload', flushOnExit)
+    }
   }, [])
 
   // Silent notification polling (non-intrusive badge update)

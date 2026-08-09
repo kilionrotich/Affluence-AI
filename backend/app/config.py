@@ -1,8 +1,12 @@
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # Do NOT auto-read a .env file (Render can inject stray values) and ignore
+    # any unknown environment variables that aren't declared above.
+    model_config = SettingsConfigDict(env_file=None, extra="ignore")
+
     app_name: str = "Affiliate Commission Agent"
     database_url: str = "sqlite:///./affiliate.db"
     admin_token: str = "admin-token"

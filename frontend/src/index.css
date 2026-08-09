@@ -195,6 +195,9 @@ body {
 .neu-pill--purple { color: #6d28d9; background: linear-gradient(145deg, #f1e8ff, #e8dcff); }
 .neu-pill--amber  { color: #92400e; background: linear-gradient(145deg, #fff1d6, #ffe6bd); }
 .neu-pill--sky    { color: #0c6a8a; background: linear-gradient(145deg, #e0f4ff, #cdecff); }
+.neu-pill--cyan   { color: #0e7490; background: linear-gradient(145deg, #d5f4fb, #c0ecf7); }
+.neu-pill--teal   { color: #0f766e; background: linear-gradient(145deg, #d3f3ef, #bfece6); }
+.neu-pill--orange { color: #c2410c; background: linear-gradient(145deg, #ffe8d6, #ffd9bd); }
 .neu-pill--slate  { color: #475569; background: linear-gradient(145deg, #eef1f5, #e2e6ec); }
 
 /* ── Status indicator dot ────────────────────────────────────────── */

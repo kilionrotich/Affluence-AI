@@ -115,7 +115,8 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     ACTION_CATEGORIES = [
-        "scanning", "validation", "posting", "payment", "compliance", "system"
+        "scanning", "validation", "posting", "payment", "compliance", "system",
+        "user_action", "ai_action", "request", "content", "link_generation",
     ]
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -127,6 +128,8 @@ class AuditLog(Base):
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
     success: Mapped[bool] = mapped_column(Boolean, default=True)
+    source: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)  # user, ai, system, request
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

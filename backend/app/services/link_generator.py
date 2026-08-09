@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import AffiliateLink, Product
+from .audit_logger import AuditLogger
 
 
 def ensure_link(db: Session, product_id: int, partner_id: str = "default-partner") -> AffiliateLink:
@@ -17,6 +18,15 @@ def ensure_link(db: Session, product_id: int, partner_id: str = "default-partner
         )
     )
     if existing:
+        # Log that an existing link was retrieved (audit trail)
+        logger = AuditLogger(db)
+        logger.log_link_generated(
+            existing.id,
+            product_id,
+            product.network,
+            existing.tracking_code,
+            existing.url,
+        )
         return existing
 
     code = uuid.uuid4().hex[:12]
@@ -25,4 +35,14 @@ def ensure_link(db: Session, product_id: int, partner_id: str = "default-partner
     db.add(link)
     db.commit()
     db.refresh(link)
+
+    # Log that a new link was generated
+    logger = AuditLogger(db)
+    logger.log_link_generated(
+        link.id,
+        product_id,
+        product.network,
+        link.tracking_code,
+        link.url,
+    )
     return link

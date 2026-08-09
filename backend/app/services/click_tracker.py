@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import AffiliateLink, Click, Purchase
+from .audit_logger import AuditLogger
 
 
 class ClickTracker:
@@ -46,6 +47,18 @@ class ClickTracker:
         link.click_count = (link.click_count or 0) + 1
         self.db.commit()
         self.db.refresh(click)
+
+        # ── Persistent audit logging ────────────────────────────────
+        # Record how the link was obtained when the user clicked it.
+        logger = AuditLogger(self.db)
+        logger.log_click_recorded(
+            click_id=click.id,
+            link_id=link.id,
+            tracking_code=tracking_code,
+            referrer=referrer,
+            country=country,
+            ip_address=ip_address,
+        )
         return click
 
     def record_conversion(

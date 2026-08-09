@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
@@ -51,6 +52,7 @@ from .schemas import (
     ScanResponse,
     SummaryRequest,
     SummaryResponse,
+    UserActionCreate,
     ValidateResponse,
     # Active Social Accounts schemas
     SocialAccountCreate,
@@ -105,9 +107,30 @@ from .ratelimit import RateLimitMiddleware
 scheduler = BackgroundScheduler(timezone="UTC")
 
 
+def _ensure_audit_log_columns() -> None:
+    """Add new AuditLog columns (source, metadata_json) to existing databases.
+
+    SQLAlchemy's create_all() does not alter existing tables, so this runs a
+    lightweight ALTER TABLE for any missing column on startup. Safe to run
+    repeatedly.
+    """
+    import sqlalchemy as sa
+
+    inspector = sa.inspect(engine)
+    if not inspector.has_table("audit_logs"):
+        return
+    columns = {col["name"] for col in inspector.get_columns("audit_logs")}
+    with engine.begin() as conn:
+        if "source" not in columns:
+            conn.execute(sa.text("ALTER TABLE audit_logs ADD COLUMN source VARCHAR(16)"))
+        if "metadata_json" not in columns:
+            conn.execute(sa.text("ALTER TABLE audit_logs ADD COLUMN metadata_json JSON"))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    _ensure_audit_log_columns()
     # Existing scheduled jobs
     scheduler.add_job(
         _scheduled_validate,
@@ -293,6 +316,97 @@ async def enforce_https(request: Request, call_next):
     if get_settings().require_https and request.url.scheme != "https":
         raise HTTPException(status_code=400, detail="HTTPS is required")
     return await call_next(request)
+
+
+@app.middleware("http")
+async def audit_request_logger(request: Request, call_next):
+    """Log every HTTP request persistently to the audit log.
+
+    Skips /health and the SSE log stream to avoid noise and DB bloat.
+    """
+    # Skip health checks, the real-time SSE stream (long-lived connection),
+    # and static asset/SPA file loads (not user actions, just browser plumbing).
+    path = request.url.path
+    if (
+        path in ("/health", "/logs/stream", "/")
+        or path.startswith("/assets/")
+        or path.startswith("/favicon.")
+        or path.startswith("/icons.")
+    ):
+        return await call_next(request)
+
+    start = time.perf_counter()
+    client_ip = request.client.host if request.client else None
+
+    # Determine user role from Authorization header (best-effort, non-blocking)
+    role = None
+    auth_header = request.headers.get("authorization")
+    if auth_header:
+        token = auth_header.replace("Bearer ", "").strip()
+        settings = get_settings()
+        if token == settings.admin_token:
+            role = "admin"
+        elif token == settings.viewer_token:
+            role = "viewer"
+
+    try:
+        response = await call_next(request)
+    except HTTPException as exc:
+        # Log the failed request
+        db = next(get_db())
+        try:
+            logger = AuditLogger(db)
+            logger.log_request(
+                method=request.method,
+                path=request.url.path,
+                status_code=exc.status_code,
+                ip_address=client_ip,
+                user_role=role,
+                duration_ms=(time.perf_counter() - start) * 1000,
+            )
+        except Exception:
+            pass
+        finally:
+            db.close()
+        raise
+    except Exception as exc:
+        # Log 500 errors
+        db = next(get_db())
+        try:
+            logger = AuditLogger(db)
+            logger.log_request(
+                method=request.method,
+                path=request.url.path,
+                status_code=500,
+                ip_address=client_ip,
+                user_role=role,
+                duration_ms=(time.perf_counter() - start) * 1000,
+                metadata={"error": str(exc)},
+            )
+        except Exception:
+            pass
+        finally:
+            db.close()
+        raise
+
+    # Log the successful request
+    db = next(get_db())
+    try:
+        logger = AuditLogger(db)
+        logger.log_request(
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            ip_address=client_ip,
+            user_role=role,
+            duration_ms=(time.perf_counter() - start) * 1000,
+        )
+    except Exception:
+        pass
+    finally:
+        db.close()
+
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +600,29 @@ def record_click(
         return {"id": click.id, "link_id": click.link_id, "clicked_at": click.clicked_at.isoformat()}
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/log/user-action")
+def log_user_action(
+    payload: UserActionCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Log a user interaction from the frontend (click, navigation, input).
+
+    The frontend calls this endpoint on every user click so that ALL user
+    activity is persistently recorded in the audit log.
+    """
+    client_ip = request.client.host if request.client else None
+    logger = AuditLogger(db)
+    logger.log_user_action(
+        action=payload.action,
+        details=payload.details,
+        page=payload.page,
+        ip_address=client_ip,
+        metadata=payload.metadata,
+    )
+    return {"status": "logged"}
 
 
 @app.get("/analytics/link/{link_id}", response_model=LinkAnalyticsResponse)
@@ -1072,6 +1209,8 @@ def get_audit_logs(
             "ip_address": log.ip_address,
             "user_role": log.user_role,
             "success": log.success,
+            "source": log.source,
+            "metadata": log.metadata_json,
             "created_at": log.created_at,
         }
         for log in logs
@@ -1102,6 +1241,8 @@ def get_recent_audit_logs(
             "ip_address": log.ip_address,
             "user_role": log.user_role,
             "success": log.success,
+            "source": log.source,
+            "metadata": log.metadata_json,
             "created_at": log.created_at,
         }
         for log in logs
@@ -1168,6 +1309,8 @@ async def stream_system_logs(
                         "entity_type": log_entry.entity_type,
                         "entity_id": log_entry.entity_id,
                         "success": log_entry.success,
+                        "source": log_entry.source,
+                        "metadata": log_entry.metadata_json,
                         "created_at": log_entry.created_at.isoformat(),
                     }
                     yield f"data: {json.dumps(event_data)}\n\n"

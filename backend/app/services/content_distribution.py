@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..models import AffiliateLink, ContentDraft, Product
 from ..config import get_settings
+from .audit_logger import AuditLogger
 
 
 class ContentGenerator:
@@ -241,6 +242,11 @@ class ContentGenerator:
         self.db.add(draft)
         self.db.commit()
         self.db.refresh(draft)
+
+        # ── Persistent audit logging ────────────────────────────────
+        logger = AuditLogger(self.db)
+        logger.log_content_generated(draft.id, content_type, platform, title)
+
         return draft
 
     def embed_affiliate_link(self, body: str, link_url: str) -> str:

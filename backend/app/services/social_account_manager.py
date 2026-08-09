@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..models import SocialAccount, Notification
 from ..security import EncryptionManager
 from ..config import get_settings
+from .audit_logger import AuditLogger
 
 
 class SocialAccountManager:
@@ -261,6 +262,19 @@ class SocialAccountManager:
         account.updated_at = datetime.utcnow()
         self.db.commit()
         self.db.refresh(account)
+
+        # ── Persistent audit logging ────────────────────────────────
+        logger = AuditLogger(self.db)
+        logger.log(
+            action="social_account_verified",
+            action_category="system",
+            entity_type="SocialAccount",
+            entity_id=account.id,
+            details=f"Verification for {account.platform} '{account.account_name}': {account.connection_status}",
+            user_role="admin",
+            success=(account.connection_status == "active"),
+            source="ai",
+        )
 
         return {
             "id": account.id,

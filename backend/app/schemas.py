@@ -158,7 +158,17 @@ class AuditLogResponse(BaseModel):
     ip_address: str | None = None
     user_role: str | None = None
     success: bool
+    source: str | None = None
+    metadata: dict | None = None
     created_at: datetime
+
+
+class UserActionCreate(BaseModel):
+    """Schema for logging a user interaction from the frontend."""
+    action: str
+    details: str | None = None
+    metadata: dict | None = None
+    page: str | None = None
 
 
 class LogCategoryCount(BaseModel):

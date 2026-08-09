@@ -326,32 +326,55 @@ def scan_all_networks(
     sharesale: Optional[ShareASaleAdapter] = None,
     cj: Optional[CJAdapter] = None,
     jumia: Optional[JumiaAdapter] = None,
+    db=None,
 ) -> list[NetworkProduct]:
     """Scan all configured affiliate networks for products.
 
     Falls back to sample products for networks without API keys configured.
+    Logs each network fetch persistently when a db session is provided.
     """
     all_products = []
 
+    # Audit logger (only when db is provided)
+    audit = None
+    if db is not None:
+        from ..services.audit_logger import AuditLogger
+        audit = AuditLogger(db)
+
+    def _log_fetch(network: str, adapter, count: int):
+        if audit is not None:
+            used_fallback = not adapter.is_configured()
+            audit.log_network_fetch(network, used_fallback, count)
+
     # Amazon
     adapter = amazon or AmazonAdapter()
-    all_products.extend(adapter.search_products())
+    prods = adapter.search_products()
+    all_products.extend(prods)
+    _log_fetch("amazon", adapter, len(prods))
 
     # ClickBank
     adapter = clickbank or ClickBankAdapter()
-    all_products.extend(adapter.search_products())
+    prods = adapter.search_products()
+    all_products.extend(prods)
+    _log_fetch("clickbank", adapter, len(prods))
 
     # ShareASale
     adapter = sharesale or ShareASaleAdapter()
-    all_products.extend(adapter.search_products())
+    prods = adapter.search_products()
+    all_products.extend(prods)
+    _log_fetch("sharesale", adapter, len(prods))
 
     # CJ Affiliate
     adapter = cj or CJAdapter()
-    all_products.extend(adapter.search_products())
+    prods = adapter.search_products()
+    all_products.extend(prods)
+    _log_fetch("cj", adapter, len(prods))
 
     # Jumia
     adapter = jumia or JumiaAdapter()
-    all_products.extend(adapter.search_products())
+    prods = adapter.search_products()
+    all_products.extend(prods)
+    _log_fetch("jumia", adapter, len(prods))
 
     return all_products
 
